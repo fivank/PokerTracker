@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Poker Results Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+  <!-- Babel CDN to handle JSX syntax -->
+  <script src="https://unpkg.com/@babel/standalone"></script>
+
+  <style>
+    /* Global reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 2rem auto; /* Add top/bottom margin to center the container */
+      background-color: #fff;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Main heading */
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    /* Subheadings */
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-top: 2.5rem; /* More top margin for a stronger break between sections */
+      margin-bottom: 1rem;
+    }
+
+    /* Stronger label for file upload */
+    .file-label {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+    }
+
+    /* Grouping for file upload */
+    .file-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Add a vertical gap between the file area and the next set of buttons */
+    .after-file-upload {
+      margin-top: 2rem; 
+    }
+
+    /* Button row for New, Edit, Delete */
+    .button-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    /*
+    For larger screens, you could make them inline:
+    @media (min-width: 600px) {
+      .button-row {
+        flex-direction: row;
+      }
+    }
+    */
+
+    /* Buttons: consistent width and style */
+    button {
+      background-color: #3f51b5;
+      color: white;
+      cursor: pointer;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      border-radius: 5px;
+      min-width: 120px; /* set a min-width so they look uniform */
+      text-align: center;
+    }
+
+    button:hover {
+      background-color: #303f9f;
+    }
+
+    /* Form elements */
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+
+    .error, .warning {
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .error {
+      color: red;
+    }
+
+    .warning {
+      color: orange;
+    }
+
+    .scrollable-table-container {
+      width: 100%;
+      overflow: auto;
+      max-height: 400px;
+      margin-top: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px; 
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      font-size: 0.95rem;
+    }
+
+    th {
+      background-color: #f2f2f2;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      font-weight: 700;
+    }
+
+    tr:hover {
+      background-color: #f5f5f5;
+      cursor: pointer;
+    }
+
+    .selected-row {
+      background-color: #cdeffd; /* Light bluish color for selected row */
+    }
+
+    .download-btn {
+      margin-top: 2rem; 
+      min-width: 200px; /* Give it a distinct size */
+    }
+  </style>
+</head>
+<body>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+
+    function App() {
+      const [csvData, setCsvData] = React.useState([]);
+      const [fileName, setFileName] = React.useState('');
+
+      // Form fields
+      const [date, setDate] = React.useState('');
+      const [buyin, setBuyin] = React.useState(2000);
+      const [cashout, setCashout] = React.useState(0);
+      const [duration, setDuration] = React.useState(4.5);
+      const [warmup, setWarmup] = React.useState(1);
+      const [strategy, setStrategy] = React.useState(2);
+      const [mental, setMental] = React.useState(2);
+      const [postGame, setPostGame] = React.useState(1);
+      const [notes, setNotes] = React.useState('');
+
+      const [error, setError] = React.useState('');
+      const [warning, setWarning] = React.useState('');
+
+      // UI states
+      const [showForm, setShowForm] = React.useState(false);
+      const [isEditing, setIsEditing] = React.useState(false);
+
+      // Tracks the row currently selected (for edit or delete)
+      const [selectedRowIndex, setSelectedRowIndex] = React.useState(null);
+
+      // Helper: scroll to top
+      const scrollToTop = () => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      };
+
+      // Handle file upload
+      const handleFileUpload = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = parseCSV(e.target.result);
+          if (data.length === 0) {
+            data.push([
+              'Date',
+              'Buyin',
+              'Cashout',
+              'Result',
+              'Duration',
+              'Warmup',
+              'Strategy',
+              'Mental',
+              'Post',
+              'Notes'
+            ]);
+          }
+          setCsvData(data);
+        };
+        reader.readAsText(file);
+      };
+
+      // CSV parsing
+      const parseCSV = (content) => {
+        const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+        return lines.map(line => line.split(','));
+      };
+
+      // Sort by date
+      const sortByDate = (data) => {
+        const header = data[0];
+        const rows = data.slice(1);
+        rows.sort((a, b) => a[0].localeCompare(b[0]));
+        return [header, ...rows];
+      };
+
+      // Validation
+      const validateInputs = () => {
+        setError('');
+        if (isNaN(buyin) || buyin < 0) {
+          setError('Buyin must be a valid positive number.');
+          scrollToTop();
+          return false;
+        }
+        if (isNaN(cashout) || cashout < 0) {
+          setError('Cashout must be a valid positive number.');
+          scrollToTop();
+          return false;
+        }
+        if (isNaN(duration) || duration < 0) {
+          setError('Session Duration must be a valid positive number.');
+          scrollToTop();
+          return false;
+        }
+        return true;
+      };
+
+      const checkDateExists = (selectedDate) => {
+        if (isEditing) return false; // skip if editing
+
+        const dateExists = csvData.some(row => row[0] === selectedDate);
+        if (dateExists) {
+          setWarning('This date already exists. Please choose another one.');
+          scrollToTop();
+          return true;
+        } else {
+          setWarning('');
+          return false;
+        }
+      };
+
+      // Save entry
+      const handleSaveEntry = () => {
+        // Validate
+        if (!validateInputs()) {
+          return;
+        }
+
+        // Check date duplication
+        if (checkDateExists(date)) {
+          return;
+        }
+
+        // Compute result
+        const computedResult = parseFloat(cashout) - parseFloat(buyin);
+
+        const newRow = [
+          date || new Date().toISOString().substring(0, 10),
+          buyin,
+          cashout,
+          computedResult,
+          duration || '4.5',
+          warmup,
+          strategy,
+          mental,
+          postGame,
+          notes.replace(/,/g, ';'),
+        ];
+
+        let updatedData;
+        if (isEditing && selectedRowIndex != null) {
+          updatedData = [...csvData];
+          updatedData[selectedRowIndex] = newRow;
+        } else {
+          updatedData = [...csvData, newRow];
+        }
+
+        // Sort
+        updatedData = sortByDate(updatedData);
+
+        setCsvData(updatedData);
+        resetForm();
+        setShowForm(false);
+        setIsEditing(false);
+      };
+
+      const handleCancel = () => {
+        resetForm();
+        setShowForm(false);
+        setIsEditing(false);
+      };
+
+      const resetForm = () => {
+        setDate('');
+        setBuyin(2000);
+        setCashout(0);
+        setDuration(4.5);
+        setWarmup(1);
+        setStrategy(2);
+        setMental(2);
+        setPostGame(1);
+        setNotes('');
+        setWarning('');
+        setError('');
+      };
+
+      // Download CSV
+      const arrayToCSV = (data) => {
+        return data.map(row => row.join(',')).join('\n');
+      };
+
+      const handleDownloadCSV = () => {
+        const csvString = arrayToCSV(csvData);
+        const blob = new Blob([csvString], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'poker_results.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+
+      // Row selection
+      const handleRowClick = (index) => {
+        setSelectedRowIndex(index);
+      };
+
+      // Edit
+      const handleEditEntry = () => {
+        if (selectedRowIndex == null) return;
+        setIsEditing(true);
+        setShowForm(true);
+
+        const row = csvData[selectedRowIndex];
+        setDate(row[0]);
+        setBuyin(row[1]);
+        setCashout(row[2]);
+        setDuration(row[4]);
+        setWarmup(row[5]);
+        setStrategy(row[6]);
+        setMental(row[7]);
+        setPostGame(row[8]);
+        setNotes(row[9]);
+      };
+
+      // Delete
+      const handleDeleteEntry = () => {
+        if (selectedRowIndex == null) return;
+        let updatedData = [...csvData];
+        updatedData.splice(selectedRowIndex, 1);
+        updatedData = sortByDate(updatedData);
+        setCsvData(updatedData);
+        setSelectedRowIndex(null);
+      };
+
+      // Default date to today
+      React.useEffect(() => {
+        const today = new Date().toISOString().substring(0, 10);
+        setDate(today);
+      }, []);
+
+      return (
+        <div className="container">
+          <h1>Poker Results Tracker</h1>
+
+          <div className="file-group">
+            <span className="file-label">Select Bankroll CSV File</span>
+            <input
+              type="file"
+              onChange={handleFileUpload}
+            />
+            {/* Removed the extra file-name display here */}
+          </div>
+
+          {/* Buttons below file upload */}
+          {fileName && !showForm && (
+            <div className="after-file-upload">
+              <div className="button-row">
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setIsEditing(false);
+                    setShowForm(true);
+                  }}
+                >
+                  New Entry
+                </button>
+
+                <button
+                  onClick={handleEditEntry}
+                  disabled={selectedRowIndex === null}
+                >
+                  Edit
+                </button>
+
+                <button
+                  onClick={handleDeleteEntry}
+                  disabled={selectedRowIndex === null}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Table of sessions */}
+          {csvData.length > 1 && !showForm && (
+            <>
+              <h2>Previous Sessions</h2>
+              <div className="scrollable-table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Buyin</th>
+                      <th>Cashout</th>
+                      <th>Result</th>
+                      <th>Duration</th>
+                      <th>Warmup</th>
+                      <th>Strategy</th>
+                      <th>Mental</th>
+                      <th>Post</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvData.slice(1).map((row, index) => {
+                      const actualIndex = index + 1;
+                      return (
+                        <tr
+                          key={index}
+                          onClick={() => handleRowClick(actualIndex)}
+                          className={selectedRowIndex === actualIndex ? 'selected-row' : ''}
+                        >
+                          {row.map((col, colIndex) => (
+                            <td key={colIndex}>{col}</td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* New/Edit form */}
+          {showForm && (
+            <div style={{ marginTop: '1.5rem' }}>
+              {error && <div className="error">{error}</div>}
+              {warning && <div className="warning">{warning}</div>}
+
+              <div className="form-group">
+                <label>Date</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Buyin</label>
+                <input
+                  type="number"
+                  value={buyin}
+                  onChange={(e) => setBuyin(e.target.value)}
+                  min="0"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Cashout</label>
+                <input
+                  type="number"
+                  value={cashout}
+                  onChange={(e) => setCashout(e.target.value)}
+                  min="0"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Session Duration (hours)</label>
+                <input
+                  type="number"
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  min="0"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Warmup Routine (0-2)</label>
+                <select
+                  value={warmup}
+                  onChange={(e) => setWarmup(e.target.value)}
+                >
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Strategy (0-4)</label>
+                <select
+                  value={strategy}
+                  onChange={(e) => setStrategy(e.target.value)}
+                >
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Mental Game (0-4)</label>
+                <select
+                  value={mental}
+                  onChange={(e) => setMental(e.target.value)}
+                >
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Post Game (0-2)</label>
+                <select
+                  value={postGame}
+                  onChange={(e) => setPostGame(e.target.value)}
+                >
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Notes</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button onClick={handleSaveEntry}>Save Entry</button>
+                <button onClick={handleCancel}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Download CSV Button */}
+          {csvData.length > 1 && !showForm && (
+            <button onClick={handleDownloadCSV} className="download-btn">
+              Download Updated CSV
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
